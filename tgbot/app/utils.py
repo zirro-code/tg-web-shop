@@ -20,6 +20,7 @@ async def create_telegram_user(
     last_name: str | None = None,
     username: str | None = None,
 ):
+    # TODO: handle update
     if (
         web.admin_app.telegram_bot.models.User.objects.filter(chat_id=chat_id)
         .all()
@@ -34,3 +35,6 @@ async def create_telegram_user(
         last_name=last_name,
         username=username,
     ).asave()
+
+
+# TODO: restrict bot from usage in chats?

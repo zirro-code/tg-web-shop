@@ -34,7 +34,7 @@ class GoogleSheets:
                 logger.error(text)
                 return None
 
-    async def add_row_to_sheet(self, spreadsheet_id: int, values: list[Any]):
+    async def add_row_to_sheet(self, spreadsheet_id: str, values: list[Any]):
         route = f"{spreadsheet_id}/values/Sheet1!A1:append"
         params = {"valueInputOption": "USER_ENTERED", "insertDataOption": "INSERT_ROWS"}
 

@@ -6,6 +6,7 @@ class User(models.Model):
     first_name = models.CharField()
     last_name = models.CharField(null=True, blank=True)
     username = models.CharField(null=True, blank=True)
+    delivery_address = models.CharField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

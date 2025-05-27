@@ -105,7 +105,7 @@ async def generate_item(
     markup.add(
         InlineKeyboardButton(
             text=i18n.t("add_to_cart", chat_id),
-            callback_data=f"item+add_to_cart+{item.id}",  # type: ignore
+            callback_data=f"cart+add+{item.id}",  # type: ignore
         )
     )
     if paginator.count > page:
@@ -124,10 +124,19 @@ async def generate_item(
 
 
 @router.message(Command("catalog"))
-async def command(message: Message, bot: Bot) -> None:
-    await bot.send_message(message.chat.id, i18n.t("catalog", message.chat.id))
+async def command(message: Message | CallbackQuery, bot: Bot) -> None:
+    if isinstance(message, Message):
+        chat_id = message.chat.id
+    elif isinstance(message, CallbackQuery):  # type: ignore
+        if not message.message:
+            raise ValueError
+        chat_id = message.message.chat.id
+    else:
+        return Never
 
-    await generate_categories(bot, 1, message.chat.id, "category")
+    await bot.send_message(chat_id, i18n.t("catalog", chat_id))
+
+    await generate_categories(bot, 1, chat_id, "category")
 
 
 @router.callback_query(CallbackDataPrefixFilter("category"))
@@ -175,7 +184,7 @@ async def handle_item_callback(query: CallbackQuery, bot: Bot):
         raise ValueError
 
     split = query.message.split("+")
-    _type: Literal["add_to_cart", "page"] = split[1]  # type: ignore
+    _type: Literal["page"] = split[1]  # type: ignore
     page = split[2]
     sub_category = None if len(split) < 4 else split[3]
     category = None if len(split) < 5 else split[4]
@@ -188,7 +197,5 @@ async def handle_item_callback(query: CallbackQuery, bot: Bot):
             sub_category,  # type: ignore
             int(page),
         )
-    elif _type == "add_to_cart":
-        ...
     else:
         return Never
