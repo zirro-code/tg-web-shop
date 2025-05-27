@@ -1,8 +1,8 @@
 version: "3.8"
 
 services:
-  postgres:
-    container_name: postgres
+  postgres_1:
+    container_name: postgres_1
     image: "postgres:17.5"
     restart: on-failure
     ports:
@@ -25,7 +25,7 @@ services:
     restart: unless-stopped
     env_file: .env
     depends_on:
-      postgres:
+      postgres_1:
         condition: service_healthy
     networks:
       - network
@@ -41,7 +41,7 @@ services:
     volumes:
       - "django:/home/app/media"
     depends_on:
-      postgres:
+      postgres_1:
         condition: service_healthy
     networks:
       - network
