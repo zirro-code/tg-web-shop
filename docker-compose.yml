@@ -35,6 +35,8 @@ services:
     image: ghcr.io/zirro-code/tg-web-shop/django:refs_heads_main
     pull_policy: always
     restart: unless-stopped
+    ports:
+      - "8001:8000"
     env_file: .env
     volumes:
       - "django:/home/app/media"
