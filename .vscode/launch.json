@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Django web app",
+      "type": "debugpy",
+      "request": "launch",
+      "args": ["runserver"],
+      "django": true,
+      "autoStartBrowser": false,
+      "program": "${workspaceFolder}/web/admin_app/manage.py"
+    },
+    {
+      "name": "Django make migrations",
+      "type": "debugpy",
+      "request": "launch",
+      "args": ["makemigrations", "telegram_bot"],
+      "django": true,
+      "autoStartBrowser": false,
+      "program": "${workspaceFolder}/web/admin_app/manage.py"
+    },
+    {
+      "name": "Django migrate",
+      "type": "debugpy",
+      "request": "launch",
+      "args": ["migrate"],
+      "django": true,
+      "autoStartBrowser": false,
+      "program": "${workspaceFolder}/web/admin_app/manage.py"
+    },
+    {
+      "name": "Telegram bot",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "tgbot"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Django",
+      "configurations": [
+        "Django make migrations",
+        "Django migrate",
+        "Django web app"
+      ]
+    }
+  ]
+}

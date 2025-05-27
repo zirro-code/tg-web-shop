@@ -1,0 +1,52 @@
+version: "3.8"
+
+services:
+  postgres:
+    container_name: postgres
+    image: "postgres:17.5"
+    restart: on-failure
+    ports:
+      - "5433:5432"
+    env_file: .env
+    volumes:
+      - "pgdata:/var/lib/postgresql/data"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+    networks:
+      - network
+
+  telegram_bot:
+    container_name: tg_bot
+    image: ghcr.io/zirro-code/tg-web-shop/telegram_bot:refs_heads_main
+    pull_policy: always
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - network
+
+  django:
+    container_name: django
+    image: ghcr.io/zirro-code/tg-web-shop/django:refs_heads_main
+    pull_policy: always
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - "django:/home/app/media"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - network
+
+volumes:
+  pgdata:
+  django:
+
+networks:
+  network:

@@ -1,0 +1,66 @@
+name: Build and release
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: ./
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ["telegram_bot", "django"]
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+
+      - name: Log into registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push the image
+        run: |
+          IMAGE_ID=${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}
+
+          # Strip git ref prefix from version
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's/[\/-]/_/g')
+          TAG=$IMAGE_ID:$VERSION
+          # Change all uppercase to lowercase
+          TAG=$(echo $TAG | tr '[A-Z]' '[a-z]')
+          echo TAG=$TAG
+
+          docker build . -f ${{ matrix.image }}.dockerfile -t $TAG
+          docker push $TAG
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      folder:
+    steps:
+      - name: Determine deployment folder
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "folder=Production/tg_web_shop/prod" >> $GITHUB_ENV
+          else
+            echo "folder=Production/tg_web_shop/stage" >> $GITHUB_ENV
+          fi
+      - name: Connect to host and execute command
+        uses: appleboy/ssh-action@master
+        with:
+          username: ${{ vars.PRODUCTION_SSH_USERNAME }}
+          host: ${{ vars.PRODUCTION_SSH_HOST }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            echo ~/${{ env.folder }}
+            cd ~/${{ env.folder }} && docker compose down; docker compose up -d
