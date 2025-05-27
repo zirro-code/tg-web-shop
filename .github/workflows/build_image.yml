@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        image: ["telegram_bot", "django"]
+        image: ["shop_telegram_bot", "django"]
 
     steps:
       - name: Check out the repo

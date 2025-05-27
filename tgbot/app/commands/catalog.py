@@ -8,9 +8,6 @@ from asgiref.sync import sync_to_async
 from django.core.paginator import Paginator
 from loguru import logger
 
-import web
-import web.admin_app
-import web.admin_app.telegram_bot
 import web.admin_app.telegram_bot.models
 from tgbot.app import i18n
 from tgbot.app.utils import CallbackDataPrefixFilter

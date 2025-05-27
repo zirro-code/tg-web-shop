@@ -18,9 +18,9 @@ services:
     networks:
       - network
 
-  telegram_bot:
+  shop_telegram_bot:
     container_name: tg_bot
-    image: ghcr.io/zirro-code/tg-web-shop/telegram_bot:refs_heads_main
+    image: ghcr.io/zirro-code/tg-web-shop/shop_telegram_bot:refs_heads_main
     pull_policy: always
     restart: unless-stopped
     env_file: .env
