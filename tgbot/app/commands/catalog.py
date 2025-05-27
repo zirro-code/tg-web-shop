@@ -41,11 +41,11 @@ async def generate_categories(
             .distinct(_type)
         )
 
-    paginator = Paginator(
+    paginator = await sync_to_async(Paginator)(
         object_list,
         per_page=per_page,
     )
-    page_results = await sync_to_async(paginator.get_page(page))  # type: ignore
+    page_results = await sync_to_async(paginator.get_page)(page)
 
     if page != 1:
         markup.add(
@@ -54,16 +54,15 @@ async def generate_categories(
                 callback_data=f"{_type}+page+{page - 1}+{category}",
             )
         )
-    for category in page_results:
-        logger.info(category)
-        text: str = category.category if _type == "category" else category.subcategory  # type: ignore  # noqa
+    async for category in page_results.object_list.all():
+        text = category.category if _type == "category" else category.subcategory  # type: ignore
         markup.add(
             InlineKeyboardButton(
                 text=text,  # type: ignore
-                callback_data=f"{_type}+page+1+{text}+{category}",
+                callback_data=f"{_type}+{_type}+1+{text}+{category.category}",  # type: ignore
             )
         )
-    if paginator.count > page:
+    if paginator.num_pages > page:
         markup.add(
             InlineKeyboardButton(
                 text=i18n.t("next", chat_id),
@@ -81,19 +80,21 @@ async def generate_item(
 ):
     # TODO: unhandled edgecase of adding new items
     # TODO: logically incorrect orderby because of wrong id param in model
+
     object_list = (
         web.admin_app.telegram_bot.models.Item.objects.all()
         .filter(category=category, subcategory=subcategory)
         .order_by("name")
     )
-    paginator = Paginator(object_list, per_page=1)
+    paginator = await sync_to_async(Paginator)(object_list, per_page=1)
 
     markup = InlineKeyboardBuilder()
 
-    item: web.admin_app.telegram_bot.models.Item = await sync_to_async(  # type: ignore
-        paginator.get_page(int(page))  # type: ignore
-    )
-    logger.warning(item)
+    item: web.admin_app.telegram_bot.models.Item = await (
+        await sync_to_async(  # type: ignore
+            paginator.get_page  # type: ignore
+        )(int(page))
+    ).object_list.afirst()
 
     if page > 1:
         markup.add(
@@ -134,17 +135,15 @@ async def command(message: Message | CallbackQuery, bot: Bot) -> None:
     else:
         return Never
 
-    await bot.send_message(chat_id, i18n.t("catalog", chat_id))
-
     await generate_categories(bot, 1, chat_id, "category")
 
 
 @router.callback_query(CallbackDataPrefixFilter("category"))
 async def handle_category_callback(query: CallbackQuery, bot: Bot):
-    if not isinstance(query.message, str):
+    if not query.data or not query.message:
         raise ValueError
 
-    split = query.message.split("+")
+    split = query.data.split("+")
     _type: Literal["category", "page"] = split[1]  # type: ignore
     page = split[2]
     category = None if len(split) < 4 else split[3]
@@ -158,13 +157,15 @@ async def handle_category_callback(query: CallbackQuery, bot: Bot):
     else:
         return Never
 
+    await query.answer()
+
 
 @router.callback_query(CallbackDataPrefixFilter("subcategory"))
 async def handle_subcategory_callback(query: CallbackQuery, bot: Bot):
-    if not isinstance(query.message, str):
+    if not query.data or not query.message:
         raise ValueError
 
-    split = query.message.split("+")
+    split = query.data.split("+")
     _type: Literal["subcategory", "page"] = split[1]  # type: ignore
     page = split[2]
     sub_category = None if len(split) < 4 else split[3]
@@ -177,13 +178,15 @@ async def handle_subcategory_callback(query: CallbackQuery, bot: Bot):
     else:
         return Never
 
+    await query.answer()
+
 
 @router.callback_query(CallbackDataPrefixFilter("item"))
 async def handle_item_callback(query: CallbackQuery, bot: Bot):
-    if not isinstance(query.message, str):
+    if not query.data or not query.message:
         raise ValueError
 
-    split = query.message.split("+")
+    split = query.data.split("+")
     _type: Literal["page"] = split[1]  # type: ignore
     page = split[2]
     sub_category = None if len(split) < 4 else split[3]
@@ -199,3 +202,5 @@ async def handle_item_callback(query: CallbackQuery, bot: Bot):
         )
     else:
         return Never
+
+    await query.answer()

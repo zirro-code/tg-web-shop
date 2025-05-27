@@ -14,10 +14,13 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from asgiref.sync import sync_to_async
+from django.shortcuts import get_object_or_404
 from loguru import logger
 
 import tgbot
 import tgbot.app
+import tgbot.app.commands
+import tgbot.app.commands.menu
 import tgbot.app.google_sheets
 import web.admin_app.telegram_bot.models
 from tgbot.app import i18n
@@ -49,7 +52,7 @@ async def select_amount(
 
 @router.message(Form.item_id)
 async def handle_amount(message: Message, bot: Bot, state: FSMContext) -> None:
-    if message.text is None or message.text.isalnum():
+    if message.text is None or not message.text.isalnum():
         await bot.send_message(
             message.chat.id, i18n.t("incorrect_amount", message.chat.id)
         )
@@ -105,13 +108,16 @@ async def select_delivery_address(query: CallbackQuery, bot: Bot, state: FSMCont
 
 @router.message(Delivery.address)
 async def handle_delivery_callback(message: Message, bot: Bot, state: FSMContext):
-    await web.admin_app.telegram_bot.models.User(message.text).asave(
-        update_fields=["delivery_address"]
+    user = await web.admin_app.telegram_bot.models.User.objects.aget(
+        chat_id=message.chat.id
     )
+    user.delivery_address = message.text
+    await user.asave()
+
     markup = InlineKeyboardBuilder()
     markup.add(
         InlineKeyboardButton(
-            text=i18n.t("to_payment", message.chat.id), callback_data="cart.pay"
+            text=i18n.t("to_payment", message.chat.id), callback_data="cart+pay"
         )
     )
     await bot.send_message(
@@ -133,7 +139,8 @@ async def handle_payment(query: CallbackQuery, bot: Bot):
         currency="RUB",
         provider_token=os.environ["YKASSA_JWT"],
         payload="demo",
-        prices=[LabeledPrice(label="Priced", amount=10000)],
+        start_parameter="test",
+        prices=[LabeledPrice(label="Priced", amount=100 * 100)],
     )
 
 
@@ -174,17 +181,25 @@ async def remove_message_callback(query: CallbackQuery, bot: Bot, state: FSMCont
     if not query.message:
         raise ValueError
     await query.message.delete()  # type: ignore
+    await query.answer()
 
 
-@router.message(F.contains("remove_"))
+@router.message(F.text.startswith("/remove_"))
 async def remove_item(message: Message, bot: Bot) -> None:
     if message.text is None:
         raise ValueError
 
     item_id = message.text.split("_")[1]
 
+    user = await sync_to_async(get_object_or_404)(
+        web.admin_app.telegram_bot.models.User, chat_id=message.chat.id
+    )
+    item = await sync_to_async(get_object_or_404)(
+        web.admin_app.telegram_bot.models.Item,
+        id=int(item_id),
+    )
     await web.admin_app.telegram_bot.models.CartItem(
-        chat_id=message.chat.id, item_id=int(item_id)
+        chat_id=user, item_id=item
     ).adelete()
 
     await bot.send_message(message.chat.id, i18n.t("item_removed", message.chat.id))
@@ -203,12 +218,15 @@ async def command(message: Message | CallbackQuery, bot: Bot) -> None:
 
     markup = InlineKeyboardBuilder()
     # TODO: refactor pls
+    user = await sync_to_async(get_object_or_404)(
+        web.admin_app.telegram_bot.models.User, chat_id=chat_id
+    )
     if (
-        await sync_to_async(  # type: ignore
-            web.admin_app.telegram_bot.models.CartItem.objects.filter(chat_id=chat_id)
+        await sync_to_async(
+            web.admin_app.telegram_bot.models.CartItem.objects.filter(chat_id=user)
             .all()
-            .count()  # type: ignore
-        )
+            .count
+        )()
         >= 1
     ):
         markup.add(
@@ -218,30 +236,31 @@ async def command(message: Message | CallbackQuery, bot: Bot) -> None:
         )
 
         text = i18n.t("cart.items", chat_id) + "\n"
-        async for item in web.admin_app.telegram_bot.models.CartItem.objects.filter(
-            chat_id=chat_id
-        ).all():
-            text += (
-                f"\n{item.item_id.name} - x{item.item_amount} - /remove_{item.item_id}"
-            )
+        async for item in (
+            web.admin_app.telegram_bot.models.CartItem.objects.filter(chat_id=chat_id)
+            .all()
+            .prefetch_related("item_id")
+            .all()
+        ):
+            text += f"\n{item.item_id.name} - x{item.item_amount} - /remove_{item.item_id.id}"
     else:
         text = i18n.t("cart.empty", chat_id)
 
-    await bot.send_message(
-        chat_id, i18n.t("cart", chat_id), reply_markup=markup.as_markup()
-    )
+    await bot.send_message(chat_id, text, reply_markup=markup.as_markup())
 
 
 @router.callback_query(CallbackDataPrefixFilter("cart"))
 async def handle_cart_callback(query: CallbackQuery, bot: Bot, state: FSMContext):
-    if not isinstance(query.message, str):
+    if not query.data or not query.message:
         raise ValueError
 
-    split = query.message.split("+")
+    split = query.data.split("+")
     _type: Literal["add", "confirm", "checkout", "pay"] = split[1]  # type: ignore
-    item_id = split[2]
+    item_id = None
+    if len(split) >= 3:
+        item_id = split[2]
 
-    if _type == "add":
+    if _type == "add" and item_id is not None:
         await select_amount(
             query,
             int(item_id),
@@ -249,21 +268,32 @@ async def handle_cart_callback(query: CallbackQuery, bot: Bot, state: FSMContext
             state,
         )
     elif _type == "confirm":
+        user = await sync_to_async(get_object_or_404)(
+            web.admin_app.telegram_bot.models.User, chat_id=query.message.chat.id
+        )
+        item = await sync_to_async(get_object_or_404)(
+            web.admin_app.telegram_bot.models.Item,
+            id=(await state.get_data())["item_id"],
+        )
         await web.admin_app.telegram_bot.models.CartItem(
-            chat_id=query.message.chat.id,
-            item_id=(await state.get_data())["item_id"],
+            chat_id=user,
+            item_id=item,
             item_amount=int((await state.get_data())["amount_of_items"]),
         ).asave()
         await state.clear()
         await bot.send_message(
             query.message.chat.id, i18n.t("added_to_the_cart", query.message.chat.id)
         )
+        await tgbot.app.commands.menu.command(query, bot)
     elif _type == "checkout":
         await select_delivery_address(query, bot, state)
     elif _type == "pay":
-        ...
+        await handle_payment(query, bot)
     else:
         return Never
 
+    await query.answer()
+
 
 # TODO: make db backups
+# TODO: make state persistant

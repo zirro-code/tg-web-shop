@@ -18,7 +18,9 @@ async def main() -> None:
 
     await bot.set_my_commands(
         [
-            BotCommand(command.name.value, command.description.value)  # type: ignore
+            BotCommand(
+                command=command.value.command, description=command.value.description
+            )  # type: ignore
             for command in tgbot.app.config.Commands
         ]
     )  # language_code="RU"

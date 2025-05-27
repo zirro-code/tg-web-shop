@@ -14,20 +14,32 @@ router = Router(name=__name__)
 
 
 @router.message(Command("menu"))
-async def command(message: Message, bot: Bot) -> None:
-    await bot.send_message(message.chat.id, i18n.t("menu", message.chat.id))
-
+async def command(message: Message | CallbackQuery, bot: Bot) -> None:
+    if isinstance(message, Message):
+        chat_id = message.chat.id
+    elif isinstance(message, CallbackQuery):  # type: ignore
+        if not message.message:
+            raise ValueError
+        chat_id = message.message.chat.id
+    else:
+        return Never
     markup = InlineKeyboardBuilder()
     markup.add(InlineKeyboardButton(text="Каталог", callback_data="menu+catalog"))
     markup.add(InlineKeyboardButton(text="Корзина", callback_data="menu+cart"))
 
+    await bot.send_message(
+        chat_id,
+        i18n.t("menu", chat_id),
+        reply_markup=markup.as_markup(),
+    )
+
 
 @router.callback_query(CallbackDataPrefixFilter("menu"))
 async def handle_delivery_callback(query: CallbackQuery, bot: Bot):
-    if not isinstance(query.message, str):
+    if not query.data or not query.message:
         raise ValueError
 
-    split = query.message.split("+")
+    split = query.data.split("+")
     _type: Literal["catalog", "cart"] = split[1]  # type: ignore
 
     if _type == "catalog":
@@ -36,3 +48,5 @@ async def handle_delivery_callback(query: CallbackQuery, bot: Bot):
         await tgbot.app.commands.cart.command(query, bot)
     else:
         return Never
+
+    await query.answer()

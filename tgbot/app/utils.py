@@ -2,6 +2,7 @@ from aiogram.filters import Filter
 from aiogram.types import CallbackQuery
 
 import web.admin_app.telegram_bot.models
+from tgbot.app.commands.cart import sync_to_async
 
 
 class CallbackDataPrefixFilter(Filter):
@@ -22,9 +23,11 @@ async def create_telegram_user(
 ):
     # TODO: handle update
     if (
-        web.admin_app.telegram_bot.models.User.objects.filter(chat_id=chat_id)
-        .all()
-        .count()
+        await sync_to_async(
+            web.admin_app.telegram_bot.models.User.objects.filter(chat_id=chat_id)
+            .all()
+            .count
+        )()
         >= 1
     ):
         return

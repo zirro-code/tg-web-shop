@@ -2,7 +2,7 @@ from django.db import models
 
 
 class User(models.Model):
-    chat_id = models.IntegerField(primary_key=True)
+    chat_id = models.AutoField(primary_key=True)
     first_name = models.CharField()
     last_name = models.CharField(null=True, blank=True)
     username = models.CharField(null=True, blank=True)
@@ -14,7 +14,7 @@ class User(models.Model):
 
 
 class FAQArticle(models.Model):
-    id = models.IntegerField(primary_key=True)
+    id = models.AutoField(primary_key=True)
     title = models.CharField()
     text = models.TextField()
 
@@ -23,7 +23,7 @@ class FAQArticle(models.Model):
 
 
 class Item(models.Model):
-    id = models.IntegerField(primary_key=True)
+    id = models.AutoField(primary_key=True)
     name = models.CharField()
     description = models.TextField()
     category = models.CharField()
@@ -35,7 +35,7 @@ class Item(models.Model):
 
 
 class CartItem(models.Model):
-    id = models.IntegerField(primary_key=True)
+    id = models.AutoField(primary_key=True)
     chat_id = models.ForeignKey(User, on_delete=models.CASCADE)
     item_id = models.ForeignKey(Item, on_delete=models.CASCADE)
     item_amount = models.IntegerField()
